@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AGV NEXUS v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;500;600;700;800&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.unpkg.com/@eohjsc/era-widget@1.1.6/src/index.js"></script>
+<style>
+:root {
+  --c0:  #050810;
+  --c1:  #071220;
+  --c2:  #0a1a30;
+  --mint:  #00ffcc;
+  --mint2: #00ccaa;
+  --pink:  #ff2d78;
+  --blue:  #0084ff;
+  --amber: #ffcc00;
+  --green: #00ff88;
+  --red:   #ff3355;
+  --violet:#a855f7;
+  --white: #e0f4ff;
+  --dim:   rgba(0,255,200,0.12);
+  --ff1: 'Oxanium', monospace;
+  --ff2: 'Exo 2', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  width:100vw;height:100vh;position:fixed;top:0;left:0;
+  background:var(--c0);font-family:var(--ff2);
+  overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
+}
+
+/* ── CANVAS BG ── */
+#particleCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+/* ── SCAN SWEEP ── */
+.scan-sweep{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,transparent 0%,rgba(0,255,200,0.03) 50%,transparent 100%);
+  background-size:100% 200px;
+  animation:scanSweep 6s linear infinite;
+}
+@keyframes scanSweep{from{background-position:0 -200px}to{background-position:0 100vh}}
+
+/* ── VIGNETTE ── */
+.vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 80% 80% at 50% 50%,transparent 40%,rgba(2,5,15,0.7) 100%);
+}
+
+/* ── LAYOUT ── */
+#app{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:8px;z-index:2;
+}
+
+/* ── PANEL ── */
+.panel{
+  position:relative;width:100%;max-width:460px;height:100%;max-height:900px;
+  background:linear-gradient(155deg,rgba(7,20,42,0.97) 0%,rgba(5,12,28,0.98) 100%);
+  border-radius:24px;padding:16px 15px;
+  display:flex;flex-direction:column;
+  box-shadow:0 0 0 1px rgba(0,255,200,0.08),0 0 60px rgba(0,100,255,0.06),0 30px 80px rgba(0,0,0,0.8);
+  overflow:hidden;
+}
+
+/* Animated border */
+.panel::before{
+  content:'';position:absolute;inset:-1px;border-radius:24px;
+  background:conic-gradient(from var(--angle,0deg),transparent 0%,var(--mint) 15%,transparent 30%,transparent 70%,var(--pink) 85%,transparent 100%);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;padding:1px;
+  animation:rotateBorder 6s linear infinite;z-index:0;opacity:0.6;
+}
+@property --angle{syntax:'<angle>';initial-value:0deg;inherits:false}
+@keyframes rotateBorder{to{--angle:360deg}}
+
+/* Corner dots */
+.panel::after{content:'';position:absolute;inset:0;border-radius:24px;pointer-events:none;
+  background:radial-gradient(circle at 0% 0%,rgba(0,255,200,0.08) 0%,transparent 30%),
+             radial-gradient(circle at 100% 100%,rgba(255,45,120,0.05) 0%,transparent 30%);}
+
+/* ── HEADER ── */
+.hdr{text-align:center;margin-bottom:12px;flex-shrink:0;position:relative;padding-bottom:12px;}
+.hdr-eyebrow{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:var(--ff1);font-size:8px;letter-spacing:.3em;color:var(--mint);
+  opacity:.5;text-transform:uppercase;margin-bottom:5px;
+}
+.hdr-eyebrow span{display:inline-block;width:20px;height:1px;background:linear-gradient(90deg,transparent,var(--mint));}
+.hdr-eyebrow span:last-child{transform:scaleX(-1);}
+.hdr-title{
+  font-family:var(--ff1);font-size:22px;font-weight:800;letter-spacing:.15em;
+  background:linear-gradient(90deg,var(--mint),#ffffff,var(--blue),var(--mint));
+  background-size:300% 100%;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:shimmerTitle 4s linear infinite;
+  filter:drop-shadow(0 0 20px rgba(0,255,200,0.3));
+}
+@keyframes shimmerTitle{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+.hdr-sub{font-family:var(--ff1);font-size:8px;letter-spacing:.2em;color:rgba(255,255,255,0.18);text-transform:uppercase;margin-top:3px;}
+.hdr-line{
+  position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:0;height:1px;background:linear-gradient(90deg,transparent,var(--mint),transparent);
+  animation:expandLine 1s ease .5s forwards;
+}
+@keyframes expandLine{to{width:60%}}
+
+/* ── STATUS BAR ── */
+.status{
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,255,200,0.03);
+  border:1px solid rgba(0,255,200,0.1);
+  border-radius:12px;padding:8px 13px;margin-bottom:12px;flex-shrink:0;
+  position:relative;overflow:hidden;
+}
+.status-shimmer{
+  position:absolute;top:0;left:-100%;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(0,255,200,0.04),transparent);
+  animation:shimmerBar 4s ease-in-out infinite;
+}
+@keyframes shimmerBar{0%,100%{left:-100%}50%{left:150%}}
+.st-left{display:flex;align-items:center;gap:8px;}
+.st-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 3px rgba(0,255,136,0.1),0 0 12px var(--green);
+  animation:stDot 2s ease-in-out infinite;
+}
+@keyframes stDot{
+  0%,100%{box-shadow:0 0 0 3px rgba(0,255,136,0.1),0 0 12px var(--green)}
+  50%{box-shadow:0 0 0 6px rgba(0,255,136,0.05),0 0 22px var(--green)}
+}
+.st-txt{font-family:var(--ff1);font-size:10px;letter-spacing:.1em;color:var(--green);text-transform:uppercase;}
+.st-right{display:flex;align-items:center;gap:6px;}
+.st-id{font-family:var(--ff1);font-size:9px;color:rgba(255,255,255,.22);letter-spacing:.08em;}
+.st-badge{
+  font-family:var(--ff1);font-size:7px;font-weight:700;letter-spacing:.1em;
+  padding:2px 7px;border-radius:4px;text-transform:uppercase;
+  background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.25);
+  color:var(--green);animation:badgePulse 3s ease-in-out infinite;
+}
+@keyframes badgePulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* ── TABS ── */
+.tabs{
+  display:flex;gap:3px;background:rgba(255,255,255,0.025);
+  border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:4px;
+  margin-bottom:13px;flex-shrink:0;position:relative;
+}
+.tab-glider{
+  position:absolute;top:4px;height:calc(100% - 8px);
+  background:linear-gradient(135deg,rgba(0,100,180,0.7),rgba(0,60,150,0.9));
+  border-radius:10px;transition:all .3s cubic-bezier(.34,1.56,.64,1);
+  border:1px solid rgba(0,180,255,0.3);
+  box-shadow:0 0 20px rgba(0,120,220,0.4),inset 0 1px 0 rgba(255,255,255,0.12);
+  pointer-events:none;z-index:0;
+}
+.tab{
+  flex:1;padding:9px 2px;border:none;border-radius:10px;
+  font-family:var(--ff2);font-size:9px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;cursor:pointer;
+  background:transparent;color:rgba(255,255,255,.28);
+  position:relative;z-index:1;transition:color .3s;
+}
+.tab.active{color:#fff;}
+.tab-after{
+  position:absolute;bottom:2px;left:50%;transform:translateX(-50%);
+  width:16px;height:2px;border-radius:1px;
+  background:var(--mint);box-shadow:0 0 8px var(--mint);
+  opacity:0;transition:opacity .3s;
+}
+.tab.active .tab-after{opacity:1;}
+
+/* ── VIEW ── */
+.view{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+.view.hidden{display:none!important;}
+.view-enter{animation:vEnter .35s cubic-bezier(.22,1,.36,1) both;}
+@keyframes vEnter{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+
+/* ══════════════════════════════════
+   DRIVE VIEW
+══════════════════════════════════ */
+.mode-toggle{
+  display:flex;align-items:center;gap:12px;
+  background:rgba(255,51,85,0.06);
+  border:1px solid rgba(255,51,85,0.2);
+  border-radius:14px;padding:10px 14px;
+  margin-bottom:10px;flex-shrink:0;cursor:pointer;
+  transition:all .3s ease;position:relative;overflow:hidden;
+}
+.mode-toggle.auto{background:rgba(0,255,136,0.06);border-color:rgba(0,255,136,0.25);}
+.mode-ripple{
+  position:absolute;border-radius:50%;
+  background:rgba(0,255,200,0.15);
+  transform:scale(0);animation:rippleOut .6s ease-out forwards;
+  pointer-events:none;
+}
+@keyframes rippleOut{to{transform:scale(4);opacity:0}}
+.mode-icon{
+  width:38px;height:38px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  background:rgba(255,51,85,0.12);border:1px solid rgba(255,51,85,0.2);
+  transition:all .3s;
+}
+.mode-toggle.auto .mode-icon{background:rgba(0,255,136,0.12);border-color:rgba(0,255,136,0.25);}
+.mode-label{font-family:var(--ff1);font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--white);}
+.mode-sub{font-family:var(--ff2);font-size:9px;color:rgba(255,255,255,.3);margin-top:2px;letter-spacing:.04em;}
+.mode-chevron{margin-left:auto;font-size:16px;color:rgba(255,255,255,.2);transition:transform .3s;}
+.mode-toggle.auto .mode-chevron{transform:rotate(90deg);color:var(--green);}
+
+.axis-row{
+  display:flex;gap:8px;margin-bottom:8px;flex-shrink:0;
+}
+.axis-card{
+  flex:1;display:flex;flex-direction:column;
+  background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);
+  border-radius:12px;padding:8px 12px;position:relative;overflow:hidden;
+}
+.axis-card::before{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;border-radius:2px;
+  transition:width .15s;
+}
+.axis-card.x::before{background:linear-gradient(90deg,var(--green),transparent);}
+.axis-card.y::before{background:linear-gradient(90deg,var(--mint),transparent);}
+.axis-lbl{font-family:var(--ff1);font-size:8px;letter-spacing:.15em;color:rgba(255,255,255,.25);text-transform:uppercase;margin-bottom:2px;}
+.axis-num{font-family:var(--ff1);font-size:20px;font-weight:700;line-height:1;transition:color .1s;}
+.axis-card.x .axis-num{color:var(--green);text-shadow:0 0 20px rgba(0,255,136,.5);}
+.axis-card.y .axis-num{color:var(--mint);text-shadow:0 0 20px rgba(0,255,200,.5);}
+.axis-bar{height:3px;background:rgba(255,255,255,.05);border-radius:3px;margin-top:5px;overflow:hidden;}
+.axis-bar-fill{height:100%;border-radius:3px;width:50%;transition:width .1s;}
+.axis-card.x .axis-bar-fill{background:linear-gradient(90deg,rgba(0,180,80,.4),var(--green));}
+.axis-card.y .axis-bar-fill{background:linear-gradient(90deg,rgba(0,180,160,.4),var(--mint));}
+
+#joyContainer{flex:1;display:flex;justify-content:center;align-items:center;position:relative;}
+canvas{outline:none;touch-action:none;max-width:100%;max-height:100%;object-fit:contain;}
+
+/* ══════════════════════════════════
+   LIFT VIEW
+══════════════════════════════════ */
+.lift-wrap{display:flex;flex-direction:column;gap:9px;justify-content:center;overflow-y:auto;}
+.lbtn{
+  position:relative;width:100%;border:none;border-radius:18px;
+  cursor:pointer;overflow:hidden;
+  transition:transform .1s ease,box-shadow .25s ease;
+  -webkit-tap-highlight-color:transparent;background:none;
+}
+.lbtn:active{transform:scale(0.974);}
+.lbtn-bg{position:absolute;inset:0;border-radius:18px;transition:opacity .3s;}
+.lbtn-sheen{
+  position:absolute;top:0;left:-100%;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
+  transition:left .4s ease;
+}
+.lbtn:hover .lbtn-sheen{left:150%;}
+.lbtn-content{display:flex;align-items:center;gap:14px;padding:17px 18px;position:relative;z-index:1;}
+
+.lbtn.up .lbtn-bg{background:linear-gradient(145deg,rgba(0,35,20,0.98),rgba(0,55,32,0.98));border:1px solid rgba(0,255,136,.18);}
+.lbtn.up{box-shadow:0 4px 24px rgba(0,255,136,.12),inset 0 1px 0 rgba(255,255,255,.07);}
+.lbtn.up:hover{box-shadow:0 6px 36px rgba(0,255,136,.25),inset 0 1px 0 rgba(255,255,255,.1);}
+
+.lbtn.stp .lbtn-bg{background:linear-gradient(145deg,rgba(55,0,18,0.98),rgba(80,8,25,0.98));border:1px solid rgba(255,51,85,.18);}
+.lbtn.stp{box-shadow:0 4px 24px rgba(255,51,85,.1),inset 0 1px 0 rgba(255,255,255,.07);}
+.lbtn.stp:hover{box-shadow:0 6px 36px rgba(255,51,85,.24),inset 0 1px 0 rgba(255,255,255,.1);}
+
+.lbtn.dn .lbtn-bg{background:linear-gradient(145deg,rgba(50,28,0,0.98),rgba(72,42,0,0.98));border:1px solid rgba(255,200,0,.18);}
+.lbtn.dn{box-shadow:0 4px 24px rgba(255,200,0,.08),inset 0 1px 0 rgba(255,255,255,.07);}
+.lbtn.dn:hover{box-shadow:0 6px 36px rgba(255,200,0,.2),inset 0 1px 0 rgba(255,255,255,.1);}
+
+.lbtn-ico{
+  width:48px;height:48px;border-radius:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .2s;
+}
+.lbtn:hover .lbtn-ico{transform:scale(1.08);}
+.lbtn.up  .lbtn-ico{background:rgba(0,255,136,.1);box-shadow:0 0 20px rgba(0,255,136,.2);border:1px solid rgba(0,255,136,.15);}
+.lbtn.stp .lbtn-ico{background:rgba(255,51,85,.1);box-shadow:0 0 20px rgba(255,51,85,.2);border:1px solid rgba(255,51,85,.15);}
+.lbtn.dn  .lbtn-ico{background:rgba(255,200,0,.1);box-shadow:0 0 20px rgba(255,200,0,.16);border:1px solid rgba(255,200,0,.15);}
+
+.lbtn-txt{flex:1;text-align:left;}
+.lbtn-name{font-family:var(--ff1);font-size:13px;font-weight:700;letter-spacing:.1em;color:var(--white);display:block;}
+.lbtn-sub{font-family:var(--ff2);font-size:9px;letter-spacing:.07em;opacity:.4;text-transform:uppercase;margin-top:2px;display:block;}
+.lbtn.up  .lbtn-sub{color:var(--green);}
+.lbtn.stp .lbtn-sub{color:var(--red);}
+.lbtn.dn  .lbtn-sub{color:var(--amber);}
+
+.lbtn-state{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;}
+.lbtn-ring{
+  width:22px;height:22px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;justify-content:center;
+  transition:all .3s;
+}
+.lbtn.running .lbtn-ring{border-color:var(--mint);box-shadow:0 0 14px var(--mint);animation:spinRing 1s linear infinite;}
+.lbtn.done    .lbtn-ring{border-color:var(--green);box-shadow:0 0 12px var(--green);}
+@keyframes spinRing{to{transform:rotate(360deg)}}
+.lbtn-bar{
+  position:absolute;bottom:0;left:0;height:3px;width:0%;
+  border-radius:0 0 18px 18px;transition:none;
+}
+.lbtn.up  .lbtn-bar{background:linear-gradient(90deg,rgba(0,255,136,.3),var(--green));}
+.lbtn.stp .lbtn-bar{background:linear-gradient(90deg,rgba(255,51,85,.3),var(--red));}
+.lbtn.dn  .lbtn-bar{background:linear-gradient(90deg,rgba(255,200,0,.3),var(--amber));}
+.lbtn.running .lbtn-bar{width:100%;transition:width 2s linear;}
+.lbtn.done    .lbtn-bar{width:100%;}
+
+/* Particle burst on lift button press */
+.lbtn-particles{position:absolute;inset:0;pointer-events:none;overflow:visible;}
+
+/* ══════════════════════════════════
+   BATTERY VIEW
+══════════════════════════════════ */
+.bat-view{overflow-y:auto;overflow-x:hidden;}
+.bat-hero{display:flex;flex-direction:column;align-items:center;gap:10px;padding:4px 0 14px;}
+
+.ring-outer{position:relative;width:170px;height:170px;cursor:pointer;}
+.ring-aura{
+  position:absolute;inset:-14px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,255,200,0.08) 0%,transparent 65%);
+  animation:auraPulse 3s ease-in-out infinite;
+}
+@keyframes auraPulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.1);opacity:1}}
+.ring-outer:hover .ring-aura{animation:auraPulse .8s ease-in-out infinite;}
+.ring-svg{transform:rotate(-90deg);}
+.rtrack{fill:none;stroke:rgba(255,255,255,.04);stroke-width:12;}
+.rfill{
+  fill:none;stroke-width:12;stroke-linecap:round;
+  transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1),stroke .5s;
+  filter:drop-shadow(0 0 8px currentColor);
+}
+.rtick{fill:none;stroke:rgba(255,255,255,.06);stroke-width:1.5;}
+.ring-center{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:0;pointer-events:none;
+}
+.ring-pct{
+  font-family:var(--ff1);font-size:36px;font-weight:800;line-height:1;
+  transition:color .4s,text-shadow .4s;
+}
+.ring-lbl{font-family:var(--ff1);font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.2);margin-top:3px;}
+.ring-bolt{font-size:14px;display:none;animation:boltAnim .4s ease-in-out infinite alternate;}
+.ring-bolt.show{display:block;}
+@keyframes boltAnim{from{transform:scale(1)translateY(0);opacity:.7}to{transform:scale(1.3)translateY(-2px);opacity:1}}
+.ring-hint{font-family:var(--ff1);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.15);text-align:center;}
+.pin-badge{font-family:var(--ff2);font-size:10px;font-weight:700;letter-spacing:.1em;padding:5px 18px;border-radius:20px;text-transform:uppercase;transition:all .4s;}
+
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.met-card{
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:18px;padding:14px 13px 12px;
+  position:relative;overflow:hidden;
+  transition:border-color .3s,box-shadow .3s,transform .2s;
+}
+.met-card:hover{border-color:rgba(255,255,255,.16);box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(-1px);}
+.met-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;}
+.met-card.volt::before{background:linear-gradient(90deg,transparent,var(--mint),transparent);}
+.met-card.amp::before{background:linear-gradient(90deg,transparent,var(--violet),transparent);}
+.met-card::after{
+  content:'';position:absolute;top:-30px;right:-30px;
+  width:80px;height:80px;border-radius:50%;opacity:.04;
+}
+.met-card.volt::after{background:var(--mint);}
+.met-card.amp::after{background:var(--violet);}
+.met-live{position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:stDot 1.8s ease-in-out infinite;}
+.met-ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin-bottom:9px;}
+.met-card.volt .met-ico{background:rgba(0,255,200,.1);box-shadow:0 0 12px rgba(0,255,200,.15);}
+.met-card.amp  .met-ico{background:rgba(168,85,247,.1);box-shadow:0 0 12px rgba(168,85,247,.15);}
+.met-val{font-family:var(--ff1);font-size:26px;font-weight:800;line-height:1;display:block;margin-bottom:3px;transition:color .4s;}
+.met-card.volt .met-val{color:var(--mint);text-shadow:0 0 20px rgba(0,255,200,.55);}
+.met-card.amp  .met-val{color:var(--violet);text-shadow:0 0 20px rgba(168,85,247,.55);}
+.met-unit{font-family:var(--ff1);font-size:11px;font-weight:400;opacity:.45;}
+.met-lbl{font-family:var(--ff2);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.25);display:block;margin-bottom:9px;}
+/* Mini sparkline */
+.met-wave{height:28px;position:relative;overflow:hidden;}
+.met-wave canvas{position:absolute;inset:0;}
+
+/* ══════════════════════════════════
+   HÀNH TRÌNH VIEW
+══════════════════════════════════ */
+.ht-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:11px;}
+.ht-s{
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);
+  border-radius:12px;padding:9px 8px;text-align:center;position:relative;overflow:hidden;
+  transition:border-color .3s;
+}
+.ht-s:hover{border-color:rgba(0,255,200,.18);}
+.ht-s::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(0,255,200,0.2),transparent);
+  animation:bottomPulse 3s ease-in-out infinite;
+}
+@keyframes bottomPulse{0%,100%{opacity:.3}50%{opacity:1}}
+.ht-sv{font-family:var(--ff1);font-size:15px;font-weight:700;color:var(--mint);display:block;transition:.3s;}
+.ht-sl{font-family:var(--ff2);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.25);display:block;margin-top:3px;}
+
+.ht-ctrl{display:flex;gap:7px;margin-bottom:11px;}
+.ht-cbtn{
+  flex:1;padding:9px 0;border:none;border-radius:10px;
+  font-family:var(--ff2);font-size:10px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;cursor:pointer;transition:all .2s;
+}
+.ht-start{background:linear-gradient(135deg,rgba(0,35,20,.95),rgba(0,60,36,.95));border:1px solid rgba(0,255,136,.22);color:var(--green);box-shadow:0 2px 14px rgba(0,255,136,.1);pointer-events:none;}
+.ht-excel{
+  background:linear-gradient(135deg,rgba(0,30,18,.95),rgba(0,55,30,.95));
+  border:1px solid rgba(0,200,100,.22);color:#4ade80;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  box-shadow:0 2px 14px rgba(0,200,100,.08);cursor:pointer;
+}
+.ht-excel:hover{box-shadow:0 4px 24px rgba(0,200,100,.28);border-color:rgba(0,200,100,.45);}
+
+.ht-list{display:flex;flex-direction:column;gap:5px;overflow-y:auto;padding-right:3px;flex:1;margin-bottom:4px;}
+.ht-list::-webkit-scrollbar{width:3px;}
+.ht-list::-webkit-scrollbar-track{background:rgba(255,255,255,.03);}
+.ht-list::-webkit-scrollbar-thumb{background:rgba(0,255,200,.18);border-radius:3px;}
+
+.ht-item{
+  display:flex;align-items:center;gap:9px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);
+  border-radius:12px;padding:8px 11px;
+  transition:all .3s;position:relative;overflow:hidden;
+}
+.ht-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:rgba(255,255,255,.06);transition:.3s;}
+.ht-item.done{background:rgba(0,255,136,.04);border-color:rgba(0,255,136,.14);}
+.ht-item.done::before{background:var(--green);box-shadow:0 0 8px var(--green);}
+.ht-item.act{background:rgba(0,255,200,.06);border-color:rgba(0,255,200,.28);animation:itemPulse 1.3s ease-in-out infinite alternate;}
+.ht-item.act::before{background:var(--mint);box-shadow:0 0 12px var(--mint);}
+.ht-item.skip{opacity:.28;}
+@keyframes itemPulse{from{box-shadow:0 0 6px rgba(0,255,200,.04)}to{box-shadow:0 0 22px rgba(0,255,200,.18)}}
+
+.ht-num{
+  min-width:25px;height:25px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--ff1);font-size:9px;font-weight:700;
+  background:rgba(255,255,255,.05);color:rgba(255,255,255,.28);flex-shrink:0;transition:.3s;
+}
+.ht-item.done .ht-num{background:rgba(0,255,136,.15);color:var(--green);}
+.ht-item.act  .ht-num{background:rgba(0,255,200,.15);color:var(--mint);}
+
+.ht-ico{width:29px;height:29px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;background:rgba(255,255,255,.04);transition:.3s;}
+.ht-item.done .ht-ico{background:rgba(0,255,136,.08);}
+.ht-item.act  .ht-ico{background:rgba(0,255,200,.1);}
+
+.ht-info{flex:1;min-width:0;}
+.ht-name{font-family:var(--ff2);font-size:12px;font-weight:700;color:var(--white);display:block;margin-bottom:1px;transition:.3s;}
+.ht-item.act  .ht-name{color:var(--mint);}
+.ht-item.done .ht-name{color:rgba(255,255,255,.45);}
+.ht-desc{font-size:9px;color:rgba(255,255,255,.22);letter-spacing:.04em;display:block;}
+
+.ht-meta{text-align:right;flex-shrink:0;}
+.ht-dur{font-family:var(--ff1);font-size:9px;color:rgba(255,255,255,.18);display:block;}
+.ht-item.done .ht-dur{color:var(--green);}
+.ht-item.act  .ht-dur{color:var(--mint);animation:blink .8s ease infinite alternate;}
+@keyframes blink{from{opacity:.5}to{opacity:1}}
+.ht-tick{width:14px;height:14px;display:none;margin-top:4px;margin-left:auto;}
+.ht-item.done .ht-tick{display:block;}
+
+/* ── FOOTER ── */
+.footer{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:auto;padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.04);flex-shrink:0;
+}
+.ft-left{display:flex;align-items:center;gap:7px;}
+.ft-time{font-family:var(--ff1);font-size:10px;color:rgba(255,255,255,.2);letter-spacing:.1em;}
+.ft-sep{width:1px;height:10px;background:rgba(255,255,255,.07);}
+.ft-mode{font-family:var(--ff1);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--mint);opacity:.45;transition:.4s;}
+.ft-right{display:flex;align-items:center;gap:5px;}
+.ft-dot{width:4px;height:4px;border-radius:50%;background:var(--mint);opacity:.3;animation:stDot 2s ease-in-out infinite;}
+.ft-dot:nth-child(2){animation-delay:.3s;}
+.ft-dot:nth-child(3){animation-delay:.6s;}
+.ft-ver{font-family:var(--ff1);font-size:8px;color:rgba(255,255,255,.12);letter-spacing:.1em;}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:28px;left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:rgba(5,12,28,0.97);
+  backdrop-filter:blur(20px);
+  border:1px solid rgba(0,255,200,0.25);
+  border-radius:12px;padding:10px 22px;
+  font-family:var(--ff2);font-size:13px;font-weight:600;
+  letter-spacing:.06em;color:var(--white);
+  box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 24px rgba(0,200,180,.1);
+  transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .35s;
+  opacity:0;pointer-events:none;white-space:nowrap;z-index:100;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+</style>
+</head>
+<body>
+
+<canvas id="particleCanvas"></canvas>
+<div class="scan-sweep"></div>
+<div class="vignette"></div>
+
+<div id="app">
+<div class="panel">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-eyebrow">
+      <span></span>AGV CONTROL NEXUS<span></span>
+    </div>
+    <div class="hdr-title">HỆ THỐNG AGV</div>
+    <div class="hdr-sub">REAL-TIME · AUTOMATED GUIDED VEHICLE</div>
+    <div class="hdr-line"></div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status">
+    <div class="status-shimmer"></div>
+    <div class="st-left">
+      <div class="st-dot"></div>
+      <span class="st-txt">HỆ THỐNG SẴN SÀNG</span>
+    </div>
+    <div class="st-right">
+      <span class="st-id">AGV-07 · UNIT 03</span>
+      <span class="st-badge">ONLINE</span>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" id="tabBar">
+    <div class="tab-glider" id="tabGlider"></div>
+    <button class="tab active" id="btnTabDrive">🚗 LÁI XE<span class="tab-after"></span></button>
+    <button class="tab" id="btnTabLift">⬆⬇ NÂNG HẠ<span class="tab-after"></span></button>
+    <button class="tab" id="btnTabPin">🔋 PIN<span class="tab-after"></span></button>
+    <button class="tab" id="btnTabHanhTrinh">📍 HÀNH TRÌNH<span class="tab-after"></span></button>
+  </div>
+
+  <!-- ═══ DRIVE ═══ -->
+  <div id="viewDrive" class="view view-enter">
+    <div class="mode-toggle" id="modeBtn">
+      <div class="mode-icon" id="modeIcon">🎮</div>
+      <div>
+        <div class="mode-label" id="modeLabel">CHẾ ĐỘ: MANUAL</div>
+        <div class="mode-sub">Nhấn để bật tự động dò line</div>
+      </div>
+      <div class="mode-chevron">›</div>
+    </div>
+
+    <div class="axis-row">
+      <div class="axis-card x">
+        <div class="axis-lbl">TRỤC X</div>
+        <div class="axis-num" id="valX">0</div>
+        <div class="axis-bar"><div class="axis-bar-fill" id="barX" style="width:50%"></div></div>
+      </div>
+      <div class="axis-card y">
+        <div class="axis-lbl">TRỤC Y</div>
+        <div class="axis-num" id="valY">0</div>
+        <div class="axis-bar"><div class="axis-bar-fill" id="barY" style="width:50%"></div></div>
+      </div>
+    </div>
+
+    <div id="joyContainer">
+      <canvas id="joystickCanvas" width="220" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- ═══ LIFT ═══ -->
+  <div id="viewLift" class="view lift-wrap hidden">
+
+    <button class="lbtn up" onclick="activateLift(this,'NÂNG HÀNG LÊN',1)">
+      <div class="lbtn-bg"></div><div class="lbtn-sheen"></div>
+      <div class="lbtn-content">
+        <div class="lbtn-ico">
+          <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+            <defs><filter id="gup"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <rect x="12" y="13" width="4" height="11" rx="2" fill="#00ff88" filter="url(#gup)"/>
+            <path d="M14 3 L23 15 H11 Z" fill="#00ff88" filter="url(#gup)"/>
+            <rect x="5" y="2" width="18" height="2.5" rx="1.25" fill="#00ff88" opacity=".7" filter="url(#gup)"/>
+          </svg>
+        </div>
+        <div class="lbtn-txt">
+          <span class="lbtn-name">NÂNG HÀNG LÊN</span>
+          <span class="lbtn-sub">Lift · Raise cargo platform</span>
+        </div>
+        <div class="lbtn-state">
+          <div class="lbtn-ring"></div>
+        </div>
+      </div>
+      <div class="lbtn-bar"></div>
+    </button>
+
+    <button class="lbtn stp" onclick="activateLift(this,'DỪNG ĐỘNG CƠ',0)">
+      <div class="lbtn-bg"></div><div class="lbtn-sheen"></div>
+      <div class="lbtn-content">
+        <div class="lbtn-ico">
+          <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+            <defs><filter id="gst"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <circle cx="14" cy="14" r="11" stroke="#ff3355" stroke-width="2" fill="none" filter="url(#gst)"/>
+            <rect x="9" y="9" width="10" height="10" rx="2.5" fill="#ff3355" filter="url(#gst)"/>
+          </svg>
+        </div>
+        <div class="lbtn-txt">
+          <span class="lbtn-name">DỪNG ĐỘNG CƠ</span>
+          <span class="lbtn-sub">Stop · Emergency motor halt</span>
+        </div>
+        <div class="lbtn-state">
+          <div class="lbtn-ring"></div>
+        </div>
+      </div>
+      <div class="lbtn-bar"></div>
+    </button>
+
+    <button class="lbtn dn" onclick="activateLift(this,'HẠ HÀNG XUỐNG',2)">
+      <div class="lbtn-bg"></div><div class="lbtn-sheen"></div>
+      <div class="lbtn-content">
+        <div class="lbtn-ico">
+          <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+            <defs><filter id="gdn"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <rect x="12" y="4" width="4" height="11" rx="2" fill="#ffcc00" filter="url(#gdn)"/>
+            <path d="M14 25 L23 13 H11 Z" fill="#ffcc00" filter="url(#gdn)"/>
+            <rect x="5" y="23.5" width="18" height="2.5" rx="1.25" fill="#ffcc00" opacity=".7" filter="url(#gdn)"/>
+          </svg>
+        </div>
+        <div class="lbtn-txt">
+          <span class="lbtn-name">HẠ HÀNG XUỐNG</span>
+          <span class="lbtn-sub">Lower · Descend cargo platform</span>
+        </div>
+        <div class="lbtn-state">
+          <div class="lbtn-ring"></div>
+        </div>
+      </div>
+      <div class="lbtn-bar"></div>
+    </button>
+
+  </div>
+
+  <!-- ═══ BATTERY ═══ -->
+  <div id="viewPin" class="view bat-view hidden">
+    <div class="bat-hero">
+      <div class="ring-outer" id="ringWrap">
+        <div class="ring-aura"></div>
+        <svg class="ring-svg" width="170" height="170" viewBox="0 0 170 170">
+          <circle class="rtrack" cx="85" cy="85" r="70"/>
+          <!-- tick marks -->
+          <g class="rtick" id="tickMarks"></g>
+          <circle class="rfill" id="ringFill" cx="85" cy="85" r="70" stroke-dasharray="439.82" stroke-dashoffset="114.35"/>
+        </svg>
+        <div class="ring-center">
+          <div class="ring-pct" id="ringPct">74%</div>
+          <div class="ring-lbl">PIN</div>
+          <div class="ring-bolt" id="ringBolt">⚡</div>
+        </div>
+      </div>
+      <div class="ring-hint">Nhấn vào vòng để bật / tắt sạc</div>
+      <div class="pin-badge" id="pinBadge">✔ BÌNH THƯỜNG</div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="met-card volt">
+        <div class="met-live"></div>
+        <div class="met-ico">
+          <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
+            <path d="M11 2v8h6l-6 10v-8H5l6-10z" fill="#00ffcc" opacity=".9"/>
+          </svg>
+        </div>
+        <span class="met-val" id="metVolt">24.6<span class="met-unit"> V</span></span>
+        <span class="met-lbl">Điện áp</span>
+        <div class="met-wave"><canvas id="waveVolt" width="130" height="28"></canvas></div>
+      </div>
+      <div class="met-card amp">
+        <div class="met-live"></div>
+        <div class="met-ico">
+          <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
+            <path d="M11 4C7.134 4 4 7.134 4 11c0 3.866 3.134 7 7 7 3.866 0 7-3.134 7-7 0-3.866-3.134-7-7-7z" stroke="#a855f7" stroke-width="1.8" fill="none"/>
+            <path d="M11 8v3.5l2.5 1.5" stroke="#a855f7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="met-val" id="metAmp">2.1<span class="met-unit"> A</span></span>
+        <span class="met-lbl">Dòng điện</span>
+        <div class="met-wave"><canvas id="waveAmp" width="130" height="28"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ HÀNH TRÌNH ═══ -->
+  <div id="viewHanhTrinh" class="view hidden">
+    <div class="ht-stats">
+      <div class="ht-s"><span class="ht-sv" id="htDone">0</span><span class="ht-sl">Hoàn thành</span></div>
+      <div class="ht-s"><span class="ht-sv" id="htCurrent">--</span><span class="ht-sl">Step ESP32</span></div>
+      <div class="ht-s"><span class="ht-sv" id="htElapsed">0s</span><span class="ht-sl">Thời gian</span></div>
+    </div>
+
+    <div class="ht-ctrl">
+      <button class="ht-cbtn ht-start" id="htBtnStart">
+        <span style="display:inline-flex;align-items:center;gap:6px;justify-content:center;">
+          <svg id="htBtnIcon" width="11" height="11" viewBox="0 0 11 11" fill="currentColor">
+            <rect x="1.5" y="1" width="3" height="9" rx="1"/>
+            <rect x="6.5" y="1" width="3" height="9" rx="1"/>
+          </svg>
+          <span id="htBtnTxt">ĐANG ĐỢI DATA...</span>
+        </span>
+      </button>
+      <button class="ht-cbtn ht-excel" onclick="exportExcel()">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <rect x="1" y="1" width="11" height="11" rx="2" stroke="#4ade80" stroke-width="1.2" fill="none"/>
+          <path d="M3 4h7M3 6.5h7M3 9h4" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        EXCEL
+      </button>
+    </div>
+
+    <div class="ht-list" id="htList"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="ft-left">
+      <span class="ft-time" id="clock">--:--:--</span>
+      <div class="ft-sep"></div>
+      <span class="ft-mode" id="footerMode">DRIVE MODE</span>
+    </div>
+    <div class="ft-right">
+      <div class="ft-dot"></div><div class="ft-dot"></div><div class="ft-dot"></div>
+      <span class="ft-ver">v3.0</span>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   PARTICLE NETWORK BACKGROUND
+═══════════════════════════════════════════ */
+(function(){
+  const c = document.getElementById('particleCanvas');
+  const x = c.getContext('2d');
+  function resize(){ c.width=window.innerWidth; c.height=window.innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+
+  const N = 45;
+  const pts = Array.from({length:N}, () => ({
+    x: Math.random()*window.innerWidth,
+    y: Math.random()*window.innerHeight,
+    vx:(Math.random()-.5)*0.35,
+    vy:(Math.random()-.5)*0.35,
+    r: Math.random()*1.5+.5,
+    a: Math.random()
+  }));
+
+  function draw(){
+    x.clearRect(0,0,c.width,c.height);
+    // connections
+    for(let i=0;i<N;i++){
+      for(let j=i+1;j<N;j++){
+        const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
+        const d=Math.sqrt(dx*dx+dy*dy);
+        if(d<130){
+          const a=(1-d/130)*0.12;
+          x.beginPath();
+          x.moveTo(pts[i].x,pts[i].y);
+          x.lineTo(pts[j].x,pts[j].y);
+          x.strokeStyle=`rgba(0,220,180,${a})`;
+          x.lineWidth=.6; x.stroke();
+        }
+      }
+    }
+    // dots
+    pts.forEach(p=>{
+      p.a += .005;
+      const alpha = (Math.sin(p.a)+1)/2 * 0.4 + 0.1;
+      x.beginPath();
+      x.arc(p.x,p.y,p.r,0,Math.PI*2);
+      x.fillStyle=`rgba(0,255,200,${alpha})`;
+      x.shadowBlur=6; x.shadowColor='rgba(0,255,200,0.3)';
+      x.fill(); x.shadowBlur=0;
+      // move
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>c.width)  p.vx*=-1;
+      if(p.y<0||p.y>c.height) p.vy*=-1;
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ═══════════════════════════════════════════
+   SPARKLINE WAVE ANIMATION
+═══════════════════════════════════════════ */
+function animWave(canvasId, color, freq){
+  const c = document.getElementById(canvasId);
+  if(!c) return;
+  const ctx = c.getContext('2d');
+  let t = 0;
+  const W = c.width, H = c.height;
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.beginPath();
+    for(let i=0;i<=W;i++){
+      const y = H/2 + Math.sin(i*0.05*freq + t)*7 + Math.sin(i*0.02*freq + t*1.3)*4;
+      i===0 ? ctx.moveTo(i,y) : ctx.lineTo(i,y);
+    }
+    ctx.strokeStyle=color; ctx.lineWidth=1.5;
+    ctx.shadowBlur=8; ctx.shadowColor=color;
+    ctx.stroke(); ctx.shadowBlur=0;
+
+    // fill
+    ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath();
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,color.replace(')',',0.15)').replace('rgb','rgba'));
+    g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.fill();
+    t+=0.04; requestAnimationFrame(draw);
+  }
+  draw();
+}
+animWave('waveVolt','rgb(0,255,200)',1);
+animWave('waveAmp','rgb(168,85,247)',1.4);
+
+/* ═══════════════════════════════════════════
+   TAB GLIDER
+═══════════════════════════════════════════ */
+const tabBar    = document.getElementById('tabBar');
+const tabGlider = document.getElementById('tabGlider');
+const allTabs   = tabBar.querySelectorAll('.tab');
+
+function moveGlider(btn){
+  const br   = tabBar.getBoundingClientRect();
+  const btnR = btn.getBoundingClientRect();
+  tabGlider.style.left  = (btnR.left - br.left - 4) + 'px';
+  tabGlider.style.width = btnR.width + 'px';
+}
+// init glider
+setTimeout(()=>{ moveGlider(allTabs[0]); }, 50);
+
+/* ═══════════════════════════════════════════
+   E-RA WIDGET
+═══════════════════════════════════════════ */
+const eraWidget = new EraWidget();
+let configData=null, configStep=null;
+eraWidget.init({
+  needRealtimeConfigs:true,
+  onConfiguration:(cfg)=>{
+    configData=cfg;
+    if(cfg.realtime_configs&&cfg.realtime_configs.length>0) configStep=cfg.realtime_configs[0];
+  },
+  onValues:(vals)=>{
+    if(configStep&&vals[configStep.id]){
+      syncStepFromESP(parseInt(vals[configStep.id].value));
+    }
+  }
+});
+
+function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('vi-VN',{hour12:false}); }
+tick(); setInterval(tick,1000);
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ═══════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════ */
+const TABS=[
+  {btn:'btnTabDrive',      view:'viewDrive',      mode:'DRIVE MODE',    col:'var(--mint)'},
+  {btn:'btnTabLift',       view:'viewLift',       mode:'LIFT MODE',     col:'var(--amber)'},
+  {btn:'btnTabPin',        view:'viewPin',        mode:'BATTERY MODE',  col:'var(--green)'},
+  {btn:'btnTabHanhTrinh',  view:'viewHanhTrinh',  mode:'LIVE TRACKING', col:'#00ff88'}
+];
+TABS.forEach(tab=>{
+  document.getElementById(tab.btn).addEventListener('click',()=>{
+    TABS.forEach(t=>{
+      document.getElementById(t.btn).classList.remove('active');
+      document.getElementById(t.view).classList.add('hidden');
+      document.getElementById(t.view).classList.remove('view-enter');
+    });
+    const btn=document.getElementById(tab.btn);
+    btn.classList.add('active');
+    const v=document.getElementById(tab.view);
+    v.classList.remove('hidden');
+    void v.offsetWidth; v.classList.add('view-enter');
+    moveGlider(btn);
+    const fm=document.getElementById('footerMode');
+    fm.textContent=tab.mode; fm.style.color=tab.col;
+  });
+});
+
+/* ═══════════════════════════════════════════
+   AUTO / MANUAL
+═══════════════════════════════════════════ */
+let isAuto=0;
+const modeBtn  =document.getElementById('modeBtn');
+const modeLabel=document.getElementById('modeLabel');
+const modeIcon =document.getElementById('modeIcon');
+
+modeBtn.addEventListener('click',function(e){
+  // ripple
+  const r=document.createElement('div');
+  r.className='mode-ripple';
+  const rect=modeBtn.getBoundingClientRect();
+  const size=Math.max(rect.width,rect.height)*2;
+  r.style.cssText=`width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px;`;
+  modeBtn.appendChild(r);
+  setTimeout(()=>r.remove(),600);
+
+  isAuto=isAuto===0?1:0;
+  if(isAuto){
+    modeLabel.innerText='CHẾ ĐỘ: TỰ ĐỘNG (AUTO)';
+    modeIcon.textContent='🤖';
+    modeBtn.classList.add('auto');
+  } else {
+    modeLabel.innerText='CHẾ ĐỘ: MANUAL';
+    modeIcon.textContent='🎮';
+    modeBtn.classList.remove('auto');
+  }
+  forceStop();
+  showToast(isAuto?'▶ ĐÃ BẬT TỰ ĐỘNG DÒ LINE':'⏹ ĐÃ TẮT TỰ ĐỘNG');
+});
+
+/* ═══════════════════════════════════════════
+   LIFT
+═══════════════════════════════════════════ */
+let activeBtn=null;
+function activateLift(btn,label,cmdValue){
+  if(activeBtn){
+    activeBtn.classList.remove('running','done');
+    const b=activeBtn.querySelector('.lbtn-bar');
+    b.style.transition='none'; b.style.width='0%'; void b.offsetWidth;
+  }
+  activeBtn=btn;
+  btn.classList.add('running');
+  const bar=btn.querySelector('.lbtn-bar');
+  bar.style.transition='none'; bar.style.width='0%'; void bar.offsetWidth;
+  bar.style.transition='width 2s linear'; bar.style.width='100%';
+  setTimeout(()=>{ btn.classList.remove('running'); btn.classList.add('done'); },2000);
+  showToast('⚙ LỆNH: '+label);
+  if(configData&&configData.actions&&configData.actions.length>1){
+    eraWidget.triggerAction(configData.actions[1].action,1,{value:cmdValue});
+  }
+}
+
+/* ═══════════════════════════════════════════
+   JOYSTICK
+═══════════════════════════════════════════ */
+const jCanvas=document.getElementById('joystickCanvas');
+const jCtx=jCanvas.getContext('2d');
+const JCX=jCanvas.width/2, JCY=jCanvas.height/2;
+const BASE=75, STICK=34;
+let targetX=0, targetY=0, isDown=false, lastSent=-1, stopCount=0;
+const trail=[];
+
+function drawJoy(px,py){
+  jCtx.clearRect(0,0,jCanvas.width,jCanvas.height);
+
+  // Outer pulse ring
+  if(isDown){
+    jCtx.beginPath(); jCtx.arc(JCX,JCY,BASE+12,0,Math.PI*2);
+    jCtx.strokeStyle='rgba(0,255,200,0.1)'; jCtx.lineWidth=8; jCtx.stroke();
+    jCtx.beginPath(); jCtx.arc(JCX,JCY,BASE+6,0,Math.PI*2);
+    jCtx.strokeStyle='rgba(0,255,200,0.12)'; jCtx.lineWidth=4; jCtx.stroke();
+  }
+
+  // Base
+  jCtx.beginPath(); jCtx.arc(JCX,JCY,BASE,0,Math.PI*2);
+  const bg=jCtx.createRadialGradient(JCX,JCY,0,JCX,JCY,BASE);
+  bg.addColorStop(0,'rgba(5,18,38,0.95)');
+  bg.addColorStop(1,'rgba(2,8,18,0.98)');
+  jCtx.fillStyle=bg; jCtx.fill();
+
+  // Grid lines
+  jCtx.save();
+  jCtx.strokeStyle='rgba(0,200,180,0.06)'; jCtx.lineWidth=1;
+  [.25,.5,.75].forEach(r=>{
+    jCtx.beginPath(); jCtx.arc(JCX,JCY,BASE*r,0,Math.PI*2); jCtx.stroke();
+  });
+  for(let a=0;a<360;a+=45){
+    const rad=a*Math.PI/180;
+    jCtx.beginPath();
+    jCtx.moveTo(JCX,JCY);
+    jCtx.lineTo(JCX+Math.cos(rad)*BASE, JCY+Math.sin(rad)*BASE);
+    jCtx.stroke();
+  }
+  jCtx.restore();
+
+  // Border
+  jCtx.beginPath(); jCtx.arc(JCX,JCY,BASE,0,Math.PI*2);
+  jCtx.strokeStyle=isDown?'rgba(0,255,200,0.5)':'rgba(0,200,180,0.18)';
+  jCtx.lineWidth=isDown?2:1.5; jCtx.stroke();
+
+  // Trail
+  if(trail.length>1){
+    jCtx.save();
+    for(let i=1;i<trail.length;i++){
+      const a=(i/trail.length)*0.35;
+      jCtx.beginPath();
+      jCtx.moveTo(trail[i-1].x,trail[i-1].y);
+      jCtx.lineTo(trail[i].x,trail[i].y);
+      jCtx.strokeStyle=`rgba(0,255,200,${a})`;
+      jCtx.lineWidth=i/trail.length*4; jCtx.stroke();
+    }
+    jCtx.restore();
+  }
+
+  // Stick shadow
+  jCtx.save();
+  jCtx.beginPath(); jCtx.arc(JCX+px+2,JCY+py+5,STICK,0,Math.PI*2);
+  jCtx.fillStyle='rgba(0,0,0,0.35)'; jCtx.fill(); jCtx.restore();
+
+  // Stick body
+  jCtx.beginPath(); jCtx.arc(JCX+px,JCY+py,STICK,0,Math.PI*2);
+  const sg=jCtx.createRadialGradient(JCX+px-STICK*.3,JCY+py-STICK*.3,0,JCX+px,JCY+py,STICK);
+  if(isDown){
+    sg.addColorStop(0,'#40ffee'); sg.addColorStop(.5,'#00b8d4'); sg.addColorStop(1,'#004560');
+    jCtx.shadowBlur=28; jCtx.shadowColor='rgba(0,255,220,0.8)';
+  } else {
+    sg.addColorStop(0,'#2060cc'); sg.addColorStop(.5,'#0d3080'); sg.addColorStop(1,'#050e30');
+    jCtx.shadowBlur=14; jCtx.shadowColor='rgba(0,80,200,0.6)';
+  }
+  jCtx.fillStyle=sg; jCtx.fill(); jCtx.shadowBlur=0;
+
+  // Stick shine
+  jCtx.beginPath(); jCtx.arc(JCX+px-STICK*.22,JCY+py-STICK*.22,STICK*.38,0,Math.PI*2);
+  jCtx.fillStyle='rgba(255,255,255,0.12)'; jCtx.fill();
+
+  // Center mark
+  jCtx.beginPath(); jCtx.arc(JCX+px,JCY+py,3.5,0,Math.PI*2);
+  jCtx.fillStyle=isDown?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.5)'; jCtx.fill();
+}
+drawJoy(0,0);
+
+function getPos(e){
+  const r=jCanvas.getBoundingClientRect();
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  return { x:(cx-r.left)*(jCanvas.width/r.width)-JCX, y:(cy-r.top)*(jCanvas.height/r.height)-JCY };
+}
+
+function updatePos(e){
+  if(isAuto) return;
+  let p=getPos(e);
+  const d=Math.sqrt(p.x*p.x+p.y*p.y);
+  if(d>BASE){ p.x*=BASE/d; p.y*=BASE/d; }
+  trail.push({x:JCX+p.x,y:JCY+p.y});
+  if(trail.length>12) trail.shift();
+  drawJoy(p.x,p.y);
+  targetX=Math.round((p.x/BASE)*100);
+  targetY=Math.round(-(p.y/BASE)*100);
+  document.getElementById('valX').innerText=targetX;
+  document.getElementById('valY').innerText=targetY;
+  document.getElementById('barX').style.width=(50+targetX/2)+'%';
+  document.getElementById('barY').style.width=(50+targetY/2)+'%';
+}
+
+function hStart(e){
+  if(!document.getElementById('viewDrive').classList.contains('hidden')&&e.target===jCanvas){
+    e.preventDefault(); isDown=true; updatePos(e);
+  }
+}
+function hMove(e){ if(!isDown)return; e.preventDefault(); updatePos(e); }
+function hEnd(e){
+  if(!isDown)return; isDown=false; trail.length=0;
+  targetX=0; targetY=0;
+  document.getElementById('valX').innerText=0;
+  document.getElementById('valY').innerText=0;
+  document.getElementById('barX').style.width='50%';
+  document.getElementById('barY').style.width='50%';
+  drawJoy(0,0); forceStop();
+}
+
+document.addEventListener('mousedown',  hStart,{passive:false});
+document.addEventListener('mousemove',  hMove, {passive:false});
+document.addEventListener('mouseup',    hEnd,  {passive:false});
+document.addEventListener('touchstart', hStart,{passive:false});
+document.addEventListener('touchmove',  hMove, {passive:false});
+document.addEventListener('touchend',   hEnd,  {passive:false});
+document.addEventListener('touchcancel',hEnd,  {passive:false});
+
+function packData(x,y){ return (isAuto*1000000)+((x+100)*1000)+(y+100); }
+function sendToEra(v){ if(configData&&configData.actions&&configData.actions.length>0) eraWidget.triggerAction(configData.actions[0].action,1,{value:v}); }
+function forceStop(){ const v=packData(0,0); sendToEra(v); lastSent=v; stopCount=1; }
+setInterval(()=>{
+  if(isAuto) return;
+  const cur=packData(targetX,targetY);
+  if(targetX===0&&targetY===0){ if(stopCount<2){ sendToEra(cur); lastSent=cur; stopCount++; } }
+  else { stopCount=0; if(cur!==lastSent){ sendToEra(cur); lastSent=cur; } }
+},250);
+
+/* ═══════════════════════════════════════════
+   HÀNH TRÌNH
+═══════════════════════════════════════════ */
+const SVGI={
+  forward:`<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 9h10M10 5l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  turnL:  `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M14 9H6m0 0 3-3M6 9l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 5v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg>`,
+  turnR:  `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 9h8m0 0-3-3m3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 5v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg>`,
+  uturn:  `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M5 13V7a4 4 0 0 1 8 0v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 11l2-3 2 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  wait:   `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="2"/><path d="M9 5v4l2.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  stop:   `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="2"/><rect x="6" y="6" width="6" height="6" rx="1.5" fill="currentColor"/></svg>`,
+  reverse:`<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M14 9H4m0 0 4-4M4 9l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  fwd:    `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 14V4M5 8l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+const ICOL={forward:'#00d4ff',turnL:'#ffcc00',turnR:'#a855f7',uturn:'#ff9d3e',wait:'#00ff88',stop:'#ff3355',reverse:'#ff9d3e',fwd:'#00d4ff'};
+
+const STEPS=[
+  {id:0, svgKey:'forward',name:'Tiến tới ngã tư 1',      desc:'Dò line đến giao lộ đầu tiên',          dur:'Auto'},
+  {id:1, svgKey:'turnR',  name:'Rẽ phải vào Trạm 1',     desc:'Bẻ lái góc 90° vào trạm',              dur:'0.35s'},
+  {id:2, svgKey:'forward',name:'Tiến vào điểm nhận',      desc:'Dò line đến vạch đích trạm 1',          dur:'Auto'},
+  {id:3, svgKey:'wait',   name:'NÂNG HÀNG',               desc:'Dừng 10s để động cơ bước nâng lên',     dur:'10.0s'},
+  {id:4, svgKey:'uturn',  name:'Quay đầu 180°',           desc:'Pivot xoay ngược xe',                   dur:'0.75s'},
+  {id:5, svgKey:'forward',name:'Tiến ra đường chính',     desc:'Dò line trở ra giao lộ',                dur:'Auto'},
+  {id:6, svgKey:'turnL',  name:'Rẽ trái lên đường',       desc:'Bẻ lái hướng về trạm 2',               dur:'0.35s'},
+  {id:7, svgKey:'forward',name:'Tiến tới ngã tư 2',       desc:'Dò line thẳng đường chính',             dur:'Auto'},
+  {id:8, svgKey:'turnR',  name:'Lách mũi đưa đuôi',       desc:'Rẽ phải để tạo góc lùi xe',            dur:'0.40s'},
+  {id:9, svgKey:'stop',   name:'Nắn xe tại vạch lùi',     desc:'Tiến nhẹ chốt vị trí thẳng',           dur:'0.30s'},
+  {id:10,svgKey:'wait',   name:'Dừng chờ lùi',            desc:'Đứng im 3s chống nhiễu quán tính',      dur:'3.0s'},
+  {id:11,svgKey:'reverse',name:'Lùi xe vào trạm 2',       desc:'Lùi đến khi chạm hồng ngoại 5cm',       dur:'Auto'},
+  {id:12,svgKey:'wait',   name:'HẠ HÀNG',                 desc:'Dừng 10s để động cơ bước hạ xuống',    dur:'10.0s'},
+  {id:13,svgKey:'fwd',    name:'Thoát khỏi tường',        desc:'Tiến mù 300ms nhích ra ngoài',          dur:'0.30s'},
+  {id:14,svgKey:'forward',name:'Tiến ra ngã tư',          desc:'Dò line ra điểm xuất phát',             dur:'Auto'},
+  {id:15,svgKey:'turnR',  name:'Rẽ phải về Start',        desc:'Bẻ lái hướng về điểm bắt đầu',         dur:'0.35s'},
+  {id:16,svgKey:'fwd',    name:'Chạy về đích (Start)',    desc:'Làm mù 3s để băng qua các vạch nhiễu', dur:'3.0s+'},
+];
+
+let htRunning=false, htCur=-1, htStart=null, htTimer=null, htLog=[];
+
+function htBuild(){
+  const list=document.getElementById('htList');
+  list.innerHTML='';
+  STEPS.forEach((s,i)=>{
+    const col=ICOL[s.svgKey]||'#00d4ff';
+    const svg=SVGI[s.svgKey]||SVGI.forward;
+    const CM={'#00d4ff':'0,212,255','#ffcc00':'255,204,0','#a855f7':'168,85,247','#ff9d3e':'255,157,62','#00ff88':'0,255,136','#ff3355':'255,51,85'};
+    const rgb=CM[col]||'0,212,255';
+    list.innerHTML+=`
+      <div class="ht-item" id="hts-${s.id}" style="animation-delay:${i*0.03}s">
+        <div class="ht-num">${String(s.id).padStart(2,'0')}</div>
+        <div class="ht-ico" style="color:${col};background:rgba(${rgb},.1)">${svg}</div>
+        <div class="ht-info">
+          <span class="ht-name">${s.name}</span>
+          <span class="ht-desc">${s.desc}</span>
+        </div>
+        <div class="ht-meta">
+          <span class="ht-dur" id="htd-${s.id}">${s.dur}</span>
+          <span class="ht-tick">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="6" fill="rgba(0,255,136,.12)" stroke="#00ff88" stroke-width="1.3"/>
+              <path d="M4 7l2 2 4-4" stroke="#00ff88" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </div>
+      </div>`;
+  });
+}
+htBuild();
+
+function htMarkActive(idx){
+  STEPS.forEach(s=>{
+    const el=document.getElementById('hts-'+s.id);
+    if(!el)return;
+    el.classList.remove('act','done','skip');
+    if(s.id<idx)   el.classList.add('done');
+    if(s.id===idx) el.classList.add('act');
+    if(s.id>idx)   el.classList.add('skip');
+  });
+  document.getElementById('htCurrent').textContent=String(idx).padStart(2,'0');
+  document.getElementById('htDone').textContent=idx;
+  const el=document.getElementById('hts-'+idx);
+  if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function htUpdateElapsed(){
+  if(!htStart)return;
+  document.getElementById('htElapsed').textContent=Math.floor((Date.now()-htStart)/1000)+'s';
+}
+
+let lastLoggedStep=-1;
+function syncStepFromESP(espStep){
+  if(espStep===htCur)return;
+  if(!htRunning){
+    htRunning=true; htStart=Date.now();
+    htTimer=setInterval(htUpdateElapsed,1000);
+    document.getElementById('htBtnTxt').textContent='ĐANG CHẠY AUTO...';
+    document.getElementById('htBtnIcon').innerHTML=`<circle cx="5.5" cy="5.5" r="4" fill="#00ff88"/>`;
+  }
+  if(htCur>=0&&htCur<STEPS.length){
+    const p=STEPS[htCur];
+    htLog.push({buoc:p.id,ten:p.name,moTa:p.desc,thoiGian:p.dur,trangThai:'Hoàn thành',thoiDiemBatDau:new Date().toLocaleTimeString('vi-VN')});
+  }
+  htCur=espStep; htMarkActive(espStep);
+  if(espStep===0&&htLog.length>=15){
+    showToast('🏁 Đã hoàn thành 1 chu trình về Start!');
+    document.getElementById('htDone').textContent='17';
+  }
+  lastLoggedStep=espStep;
+}
+
+function exportExcel(){
+  if(htLog.length===0){ showToast('⚠ Chưa có dữ liệu để xuất'); return; }
+  const header=['Bước','Tên bước','Mô tả','Thời gian (Lý thuyết)','Trạng thái','Thời điểm bắt đầu'];
+  let rows=htLog.map(r=>[r.buoc,r.ten,r.moTa,r.thoiGian,r.trangThai,r.thoiDiemBatDau]);
+  rows.push(['','','','Tổng: '+htLog.length,'','Xuất: '+new Date().toLocaleString('vi-VN')]);
+  const xmlR=[header,...rows].map(row=>`<Row>${row.map(c=>`<Cell><Data ss:Type="${typeof c==='number'?'Number':'String'}">${String(c).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</Data></Cell>`).join('')}</Row>`).join('\n');
+  const xml=`<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Hành Trình AGV"><Table>${xmlR}</Table></Worksheet></Workbook>`;
+  const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='AGV_HanhTrinh_'+new Date().toISOString().slice(0,10)+'.xls';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('✓ Đã xuất file Excel!');
+}
+</script>
+</body>
+</html>
